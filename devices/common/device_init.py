@@ -1,0 +1,236 @@
+##############################################################################
+# INTEL CONFIDENTIAL
+# Copyright 2016 2017 Intel Corporation All Rights Reserved.
+#
+# The source code contained or described herein and all documents related
+# to the source code (Material) are owned by Intel Corporation or its
+# suppliers or licensors. Title to the Material remains with Intel Corp-
+# oration or its suppliers and licensors. The Material may contain trade
+# secrets and proprietary and confidential information of Intel Corpor-
+# ation and its suppliers and licensors, and is protected by worldwide
+# copyright and trade secret laws and treaty provisions. No part of the
+# Material may be used, copied, reproduced, modified, published, uploaded,
+# posted, transmitted, distributed, or disclosed in any way without
+# Intel's prior express written permission.
+#
+# No license under any patent, copyright, trade secret or other intellect-
+# ual property right is granted to or conferred upon you by disclosure or
+# delivery of the Materials, either expressly, by implication, inducement,
+# estoppel or otherwise. Any license under such intellectual property
+# rights must be express and approved by Intel in writing.
+##############################################################################
+from .device_ids import device_id_map
+from . import legacy_commands
+
+
+class DeviceInit:
+    """This class determines what device is being tested and returns the correct object for it.
+
+    Attributes:
+        dispatch (:obj:`dict`): Holds the functions to initialize each device.
+        e_phys_dispatch (:obj:`dict`): Holds the functions to initialize external PHY.
+    """
+
+    def __init__(self,logger):
+        """Constructor for DeviceInit"""
+        self.logger = logger
+        self.dispatch = {
+            'BROADWELL': self.broadwell,
+            'CARLSVILLE': self.carlsville,
+            'TAMAR_CRVL': self.tamar_crvl,
+            'COLUMBIAVILLE': self.columbiaville,
+            'CONNORSVILLE':self.connorsville,
+            'DENVERTON': self.denverton,
+            'FORT PARK': self.lewisberg,
+            'FORTVILLE': self.fortville,
+            # 'FORTVILLE25': self.fortville25,
+            'FOXVILLE': self.foxville,
+            'NIANTIC': self.niantic,
+            'POWERVILLE': self.powerville,
+            'SAGEVILLE': self.sageville,
+            'COLUMBIA PARK': self.snowridge,
+            'SPRINGVILLE': self.springville,
+            'TWINVILLE': self.twinville,
+            'LINKVILLE': self.linkville,
+            'GRANITE_RAPIDS-D': self.granite_rapids_d
+        }
+
+        self.e_phys_dispatch = {
+            'CPVL': self.coppervale,
+            'PKVL': self.parkvale,
+            'UNVL': self.fortville25
+        }
+
+    def create(self, port, manual_mode='AUTOMATIC'):
+        """Examine the device at the port passed and return an object of that type.
+
+        Args:
+            port (str): The port to create a control object for.
+
+        Return:
+            obj: An object to control the device attached to the supplied port.
+        """
+        if manual_mode == 'MANUAL':
+            from .manual import ManualOverride
+            return ManualOverride(port)
+
+        device = legacy_commands.LegacyCommands(port)
+        
+        if device.device_id.upper() in device_id_map:
+            # Look up by Device ID
+            dut = self.dispatch[device_id_map.get(device.device_id.upper(), None)](port)
+            self.logger.info('Device identified using Device ID.')
+        else:
+            # Look up by codename
+            self.logger.info('Device ID lookup failed, attempting codename lookup...')
+            if device.codename == 'MAGNOLIA PARK':
+                dut = self.magnolia_park(port, device)
+            else:
+                dut = self.dispatch[device.codename](port)
+
+            self.logger.info('Device ID lookup failed, attempting codename lookup...')
+
+        dut = self.check_external_phy(device.list_phy(True), dut, port)
+
+        return dut
+
+    def check_external_phy(self, e_phy, dev, prt):
+        """Check for an external phy and return an object to control it."""
+        for phy in self.e_phys_dispatch:
+            if phy in e_phy:
+                dev = self.e_phys_dispatch[phy](prt)
+
+        return dev
+
+    def magnolia_park(self, port_num, dev):
+        """Check the Magnolia Park phy type and return either a Denverton or Broadwell object."""
+        primary_phy = dev.list_phy()['PRIMARY']
+
+        if primary_phy == 'KEREM73':
+            res = self.broadwell(port_num)
+        elif primary_phy == 'KEREM73_DNV':
+            res = self.denverton(port_num)
+        else:
+            res = None
+
+        return res
+
+    @staticmethod
+    def broadwell(port):
+        """Import and return a Broadwell object."""
+        from ..hss.broadwell import Broadwell
+        return Broadwell(port)
+
+    @staticmethod
+    def carlsville(port):
+        """Import and return a Carlsville object."""
+        from ..base_t.carlsville import Carlsville
+        return Carlsville(port)
+        
+    @staticmethod
+    def connorsville(port):
+        """Import and return a Carlsville object."""
+        from ..hss.connorsville import Connorsville
+        return Connorsville(port)
+
+    @staticmethod
+    def columbiaville(port):
+        """Import and return a Columbiaville object."""
+        from ..hss.columbiaville import Columbiaville
+        return Columbiaville(port)
+
+    @staticmethod
+    def coppervale(port):
+        """Import and return a Coppervale object."""
+        from ..base_t.coppervale import Coppervale
+        return Coppervale(port)
+
+    @staticmethod
+    def denverton(port):
+        """Import and return a Denverton object."""
+        from ..hss.denverton import Denverton
+        return Denverton(port)
+
+    @staticmethod
+    def fortville(port):
+        """Import and return a Fortville object."""
+        from ..hss.fortville import Fortville
+        return Fortville(port)
+
+    @staticmethod
+    def fortville25(port):
+        """Import and return a Fortville25 object."""
+        from ..hss.fortville25 import Fortville25
+        return Fortville25(port)
+
+    @staticmethod
+    def foxville(port):
+        """Import and return a Foxville object."""
+        from ..base_t.foxville import Foxville
+        return Foxville(port)
+
+    @staticmethod
+    def lewisberg(port):
+        """Import and return a Lewisberg object."""
+        from ..hss.lewisberg import Lewisberg
+        return Lewisberg(port)
+
+    @staticmethod
+    def niantic(port):
+        """Import and return a Niantic object."""
+        from ..hss.niantic import Niantic
+        return Niantic(port)
+
+    @staticmethod
+    def parkvale(port):
+        """Import and return a Parkvale object."""
+        from ..hss.parkvale import Parkvale
+        return Parkvale(port)
+
+    @staticmethod
+    def powerville(port):
+        """Import and return a Powerville object."""
+        from ..base_t.powerville import Powerville
+        return Powerville(port)
+
+    @staticmethod
+    def sageville(port):
+        """Import and return a Sageville object."""
+        from ..base_t.sageville import Sageville
+        return Sageville(port)
+
+    @staticmethod
+    def snowridge(port):
+        """Import and return a Snowridge object."""
+        from ..hss.snowridge import Snowridge
+        return Snowridge(port)
+
+    @staticmethod
+    def springville(port):
+        """Import and return a Springville object."""
+        from ..base_t.springville import Springville
+        return Springville(port)
+
+    @staticmethod
+    def twinville(port):
+        """Import and return a Twinville object."""
+        from ..base_t.twinville import Twinville
+        return Twinville(port)
+
+    @staticmethod
+    def linkville(port):
+        """Import and return a Linkville object."""
+        from ..base_t.linkville import Linkville
+        return Linkville(port)
+
+    @staticmethod
+    def tamar_crvl(port):
+        """Import and return a Tamar_CRVL object."""
+        from ..hss.tamar_crvl import Tamar_CRVL
+        return Tamar_CRVL(port)
+        
+    @staticmethod
+    def granite_rapids_d(port):
+        """Import and return a Tamar_CRVL object."""
+        from ..hss.granite_rapids_d import Granite_Rapids_D
+        return Granite_Rapids_D(port)
