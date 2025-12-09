@@ -483,7 +483,7 @@ class RobotLHCWrapper:
             except NameError:
                 self.logger.info('Cannot create output files due to the above error!')
 
-            if err.message == 'Aborted by user.':
+            if str(err) == 'Aborted by user.':
                 raise StandardError('Aborted by user.')
             else:
                 self.logger.info('\nContinuing to any other ports left to test...\n\n')
